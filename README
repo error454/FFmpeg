@@ -1,12 +1,4 @@
-FFmpeg README
--------------
+This is a fork of FFmpeg that is specifically aimed at running ffplay on the webOS Touchpad to open up the range of playable video formats.
 
-1) Documentation
-----------------
-
-* Read the documentation in the doc/ directory.
-
-2) Licensing
-------------
-
-* See the LICENSE file.
+Current feature:
+ffplay runs on the Touchpad

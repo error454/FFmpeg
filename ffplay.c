@@ -905,7 +905,7 @@ static void do_exit(void)
 }
 
 static int video_open(VideoState *is){
-    int flags = SDL_HWSURFACE|SDL_ASYNCBLIT|SDL_HWACCEL;
+    int flags = SDL_SWSURFACE|SDL_ASYNCBLIT|SDL_HWACCEL;
     int w,h;
 
     if(is_full_screen) flags |= SDL_FULLSCREEN;
@@ -2801,7 +2801,7 @@ static void event_loop(void)
         case SDL_VIDEORESIZE:
             if (cur_stream) {
                 screen = SDL_SetVideoMode(event.resize.w, event.resize.h, 0,
-                                          SDL_HWSURFACE|SDL_RESIZABLE|SDL_ASYNCBLIT|SDL_HWACCEL);
+                                          SDL_SWSURFACE|SDL_RESIZABLE|SDL_ASYNCBLIT|SDL_HWACCEL);
                 screen_width = cur_stream->width = event.resize.w;
                 screen_height= cur_stream->height= event.resize.h;
             }
