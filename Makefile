@@ -80,8 +80,8 @@ endef
 
 $(foreach D,$(FFLIBS),$(eval $(call DOSUBDIR,lib$(D))))
 
-ffplay.o: CFLAGS += $(SDL_CFLAGS)
-ffplay_g$(EXESUF): FF_EXTRALIBS += $(SDL_LIBS)
+ffplay.o: CFLAGS += $(SDL_CFLAGS) 
+ffplay_g$(EXESUF): FF_EXTRALIBS += $(SDL_LIBS) -lSDL_image
 ffserver_g$(EXESUF): LDFLAGS += $(FFSERVERLDFLAGS)
 
 %_g$(EXESUF): %.o cmdutils.o $(FF_DEP_LIBS)
