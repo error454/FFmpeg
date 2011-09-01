@@ -48,6 +48,7 @@
 
 #include <SDL.h>
 #include <SDL_thread.h>
+#include <SDL_image.h>
 
 #include "cmdutils.h"
 
@@ -236,7 +237,7 @@ static int wanted_stream[AVMEDIA_TYPE_NB]={
 };
 static int seek_by_bytes=-1;
 static int display_disable;
-static int show_status = 1;
+static int show_status = 0;
 static int av_sync_type = AV_SYNC_AUDIO_MASTER;
 static int64_t start_time = AV_NOPTS_VALUE;
 static int64_t duration = AV_NOPTS_VALUE;
@@ -277,6 +278,15 @@ static AVPacket flush_pkt;
 #define FF_QUIT_EVENT    (SDL_USEREVENT + 2)
 
 static SDL_Surface *screen;
+static SDL_Surface *seekBar;
+static SDL_Surface *seeker;
+static SDL_Surface *pauseButton;
+static SDL_Surface *playButton;
+static SDL_Rect pausePlayLocation;
+static SDL_Rect controlsLocation;
+static SDL_Rect seekBarLocation;
+static SDL_Rect seekerLocation;
+static int seekBarVisible;
 
 static int packet_queue_put(PacketQueue *q, AVPacket *pkt)
 {
@@ -635,6 +645,35 @@ static void free_subpicture(SubPicture *sp)
     avsubtitle_free(&sp->sub);
 }
 
+static void drawSeekBar(){
+     SDL_BlitSurface(seekBar, NULL, screen, &seekBarLocation);
+
+     //calculate where the seeker should be drawn based on time
+     int64_t duration, position;
+     duration = cur_stream->ic->duration;
+ 
+     if (cur_stream->video_stream >= 0 && cur_stream->video_current_pos>=0){
+         position = cur_stream->video_current_pos;
+     }else if(cur_stream->audio_stream >= 0 && cur_stream->audio_pkt.pos>=0){
+         position = cur_stream->audio_pkt.pos;
+     }else
+         position = avio_tell(cur_stream->ic->pb);
+
+     //TODO Not working. position and duration do not seem to be the same units
+     //currently pos/ts * seekBar->w always evaluates to zero.
+     seekerLocation.x = ((float)(position / duration) * seekBar->w) + seekBarLocation.x;
+     
+     SDL_BlitSurface(seeker, NULL, screen, &seekerLocation);
+     
+     if(cur_stream->paused){
+	SDL_BlitSurface(playButton, NULL, screen, &pausePlayLocation);
+     } else{
+	SDL_BlitSurface(pauseButton, NULL, screen, &pausePlayLocation);
+     }
+
+     SDL_Flip(screen);
+}
+
 static void video_image_display(VideoState *is)
 {
     VideoPicture *vp;
@@ -706,6 +745,10 @@ static void video_image_display(VideoState *is)
         rect.w = FFMAX(width,  1);
         rect.h = FFMAX(height, 1);
         SDL_DisplayYUVOverlay(vp->bmp, &rect);
+	
+	if(seekBarVisible){
+	    drawSeekBar();
+	}
     }
 }
 
@@ -905,12 +948,13 @@ static void do_exit(void)
 }
 
 static int video_open(VideoState *is){
-    int flags = SDL_SWSURFACE|SDL_ASYNCBLIT|SDL_HWACCEL;
+    int flags = SDL_SWSURFACE|SDL_ASYNCBLIT|SDL_HWACCEL|SDL_FULLSCREEN;
     int w,h;
 
+/*
     if(is_full_screen) flags |= SDL_FULLSCREEN;
     else               flags |= SDL_RESIZABLE;
-
+*/
     if (is_full_screen && fs_screen_width) {
         w = fs_screen_width;
         h = fs_screen_height;
@@ -935,7 +979,7 @@ static int video_open(VideoState *is){
         return 0;
 
 #ifndef __APPLE__
-    screen = SDL_SetVideoMode(w, h, 0, flags);
+    screen = SDL_SetVideoMode(0, 0, 0, flags);
 #else
     /* setting bits_per_pixel = 0 or 32 causes blank video on OS X */
     screen = SDL_SetVideoMode(w, h, 24, flags);
@@ -1310,7 +1354,7 @@ static int queue_picture(VideoState *is, AVFrame *src_frame, double pts1, int64_
     is->video_clock += frame_delay;
 
 #if defined(DEBUG_SYNC) && 0
-    printf("frame_type=%c clock=%0.3f pts=%0.3f\n",
+    printf("fgame_type=%c clock=%0.3f pts=%0.3f\n",
            av_get_picture_type_char(src_frame->pict_type), pts, pts1);
 #endif
 
@@ -2677,6 +2721,14 @@ static void toggle_audio_display(void)
     }
 }
 
+/*Basic collision detection*/
+static int isPointInRect(SDL_Rect r, Uint16 x, Uint16 y){
+	return (r.x <= x)
+		&& (x <= r.x + r.w)
+		&& (r.y <= y)
+		&& (y <= r.y + r.h);
+}
+
 /* handle an event sent by the GUI */
 static void event_loop(void)
 {
@@ -2760,10 +2812,25 @@ static void event_loop(void)
             }
             break;
         case SDL_MOUSEBUTTONDOWN:
-            if (exit_on_mousedown) {
-                do_exit();
-                break;
-            }
+	    //If the seek bar is visible
+	    if(seekBarVisible){
+		//Clicked the pause button
+		if(isPointInRect(pausePlayLocation, event.button.x, event.button.y)){
+	   		toggle_pause();
+		}
+		//Clicked outside of the control bar
+		else if(isPointInRect(seekBarLocation, event.button.x, event.button.y) < 1){
+			//only hide the control bar if we are not paused
+			if(!cur_stream->paused){
+				seekBarVisible = 0;
+				SDL_FillRect(screen, &controlsLocation, SDL_MapRGB(screen->format, 0, 0, 0));
+				SDL_Flip(screen);
+			}
+		}
+	    } else{
+		seekBarVisible = 1;
+	    }
+            break;
         case SDL_MOUSEMOTION:
             if(event.type ==SDL_MOUSEBUTTONDOWN){
                 x= event.button.x;
@@ -2772,10 +2839,12 @@ static void event_loop(void)
                     break;
                 x= event.motion.x;
             }
-            if (cur_stream) {
+	
+            if (cur_stream && isPointInRect(seekBarLocation, event.button.x, event.button.y)) {
                 if(seek_by_bytes || cur_stream->ic->duration<=0){
                     uint64_t size=  avio_size(cur_stream->ic->pb);
-                    stream_seek(cur_stream, size*x/cur_stream->width, 0, 1);
+		printf("seeking");
+                    stream_seek(cur_stream, size*(x - seekBarLocation.x)/seekBar->w, 0, 1);
                 }else{
                     int64_t ts;
                     int ns, hh, mm, ss;
@@ -2784,7 +2853,7 @@ static void event_loop(void)
                     thh = tns/3600;
                     tmm = (tns%3600)/60;
                     tss = (tns%60);
-                    frac = x/cur_stream->width;
+                    frac = (x - seekBarLocation.x)/seekBar->w;
                     ns = frac*tns;
                     hh = ns/3600;
                     mm = (ns%3600)/60;
@@ -2818,6 +2887,14 @@ static void event_loop(void)
             video_refresh(event.user.data1);
             cur_stream->refresh=0;
             break;
+	case SDL_ACTIVEEVENT:
+	    if(event.active.gain == 0){
+		if(!cur_stream->paused){
+		    seekBarVisible = 1;
+	            toggle_pause();
+		}
+	    }
+	    break;
         default:
             break;
         }
@@ -3058,7 +3135,23 @@ int main(int argc, char **argv)
 #endif
     }
 
-    SDL_EventState(SDL_ACTIVEEVENT, SDL_IGNORE);
+    seekBarVisible = 0;
+    seekBar = IMG_Load("images/seekbar.png");
+    seeker = IMG_Load("images/seeker.png");
+    pauseButton = IMG_Load("images/pause.png");
+    playButton = IMG_Load("images/play.png");
+
+    pausePlayLocation.y = fs_screen_height - playButton->h;
+    pausePlayLocation.x = fs_screen_width - playButton->w - 10;
+    seekBarLocation.x = fs_screen_width / 2 - seekBar->w / 2;
+    seekBarLocation.y = fs_screen_height - seekBar->h;
+    seekerLocation.y = fs_screen_height - seeker->h;
+    controlsLocation.x = 0;
+    controlsLocation.y = fs_screen_height - seekBar->h;
+    controlsLocation.h = seekBar->h;
+    controlsLocation.w = fs_screen_width;
+ 
+    SDL_EventState(SDL_ACTIVEEVENT, SDL_ENABLE);
     SDL_EventState(SDL_SYSWMEVENT, SDL_IGNORE);
     SDL_EventState(SDL_USEREVENT, SDL_IGNORE);
 
