@@ -14,7 +14,7 @@ eval do_$test=y
 do_lavf()
 {
     file=${outfile}lavf.$1
-    do_avconv $file $DEC_OPTS -f image2 -vcodec pgmyuv -i $raw_src $DEC_OPTS -ar 44100 -f s16le -i $pcm_src $ENC_OPTS -b:a 64k -t 1 -qscale 10 $2
+    do_avconv $file $DEC_OPTS -f image2 -vcodec pgmyuv -i $raw_src $DEC_OPTS -ar 44100 -f s16le -i $pcm_src $ENC_OPTS -b:a 64k -t 1 -qscale:v 10 $2
     do_avconv_crc $file $DEC_OPTS -i $target_path/$file $3
 }
 
@@ -44,22 +44,22 @@ do_audio_only()
 }
 
 if [ -n "$do_avi" ] ; then
-do_lavf avi
+do_lavf avi "-acodec mp2 -ab 64k"
 fi
 
 if [ -n "$do_asf" ] ; then
-do_lavf asf "-acodec mp2" "-r 25"
+do_lavf asf "-acodec mp2 -ab 64k" "-r 25"
 fi
 
 if [ -n "$do_rm" ] ; then
 file=${outfile}lavf.rm
-do_avconv $file $DEC_OPTS -f image2 -vcodec pgmyuv -i $raw_src $DEC_OPTS -ar 44100 -f s16le -i $pcm_src $ENC_OPTS -t 1 -qscale 10 -acodec ac3_fixed -b:a 64k
+do_avconv $file $DEC_OPTS -f image2 -vcodec pgmyuv -i $raw_src $DEC_OPTS -ar 44100 -f s16le -i $pcm_src $ENC_OPTS -t 1 -qscale 10 -acodec ac3_fixed -ab 64k
 # broken
 #do_avconv_crc $file -i $target_path/$file
 fi
 
 if [ -n "$do_mpg" ] ; then
-do_lavf mpg
+do_lavf mpg "-ab 64k"
 fi
 
 if [ -n "$do_mxf" ] ; then
@@ -71,7 +71,7 @@ do_lavf mxf_d10 "-ar 48000 -ac 2 -r 25 -s 720x576 -vf pad=720:608:0:32 -vcodec m
 fi
 
 if [ -n "$do_ts" ] ; then
-do_lavf ts
+do_lavf ts "-ab 64k"
 fi
 
 if [ -n "$do_swf" ] ; then
@@ -79,7 +79,7 @@ do_lavf swf -an
 fi
 
 if [ -n "$do_ffm" ] ; then
-do_lavf ffm
+do_lavf ffm "-ab 64k"
 fi
 
 if [ -n "$do_flv_fmt" ] ; then
@@ -87,7 +87,7 @@ do_lavf flv -an
 fi
 
 if [ -n "$do_mov" ] ; then
-do_lavf mov "-acodec pcm_alaw"
+do_lavf mov "-acodec pcm_alaw -vcodec mpeg4"
 fi
 
 if [ -n "$do_dv_fmt" ] ; then
@@ -99,11 +99,11 @@ do_lavf gxf "-ar 48000 -r 25 -s pal -ac 1"
 fi
 
 if [ -n "$do_nut" ] ; then
-do_lavf nut "-acodec mp2"
+do_lavf nut "-acodec mp2 -ab 64k"
 fi
 
 if [ -n "$do_mkv" ] ; then
-do_lavf mkv
+do_lavf mkv "-acodec mp2 -ab 64k -vcodec mpeg4"
 fi
 
 
@@ -227,8 +227,8 @@ conversions="yuv420p yuv422p yuv444p yuyv422 yuv410p yuv411p yuvj420p \
              monob yuv440p yuvj440p"
 for pix_fmt in $conversions ; do
     file=${outfile}${pix_fmt}.yuv
-    run_avconv $DEC_OPTS -r 1 -t 1 -f image2 -vcodec pgmyuv -i $raw_src \
-               $ENC_OPTS -f rawvideo -s 352x288 -pix_fmt $pix_fmt $target_path/$raw_dst
+    run_avconv $DEC_OPTS -r 1 -f image2 -vcodec pgmyuv -i $raw_src \
+               $ENC_OPTS -f rawvideo -t 1 -s 352x288 -pix_fmt $pix_fmt $target_path/$raw_dst
     do_avconv $file $DEC_OPTS -f rawvideo -s 352x288 -pix_fmt $pix_fmt -i $target_path/$raw_dst \
                     $ENC_OPTS -f rawvideo -s 352x288 -pix_fmt yuv444p
 done

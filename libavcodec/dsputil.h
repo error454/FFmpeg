@@ -204,6 +204,8 @@ typedef struct ScanTable{
 } ScanTable;
 
 void ff_init_scantable(uint8_t *, ScanTable *st, const uint8_t *src_scantable);
+void ff_init_scantable_permutation(uint8_t *idct_permutation,
+                                   int idct_permutation_type);
 
 #define EMULATED_EDGE(depth) \
 void ff_emulated_edge_mc_ ## depth (uint8_t *buf, const uint8_t *src, int linesize,\
@@ -424,6 +426,17 @@ typedef struct DSPContext {
     void (*vector_fmul_scalar)(float *dst, const float *src, float mul,
                                int len);
     /**
+     * Multiply a vector of floats by a scalar float and add to
+     * destination vector.  Source and destination vectors must
+     * overlap exactly or not at all.
+     * @param dst result vector, 16-byte aligned
+     * @param src input vector, 16-byte aligned
+     * @param mul scalar value
+     * @param len length of vector, multiple of 4
+     */
+    void (*vector_fmac_scalar)(float *dst, const float *src, float mul,
+                               int len);
+    /**
      * Calculate the scalar product of two vectors of floats.
      * @param v1  first vector, 16-byte aligned
      * @param v2  second vector, 16-byte aligned
@@ -466,8 +479,8 @@ typedef struct DSPContext {
      * with the zigzag/alternate scan<br>
      * an example to avoid confusion:
      * - (->decode coeffs -> zigzag reorder -> dequant -> reference idct ->...)
-     * - (x -> referece dct -> reference idct -> x)
-     * - (x -> referece dct -> simple_mmx_perm = idct_permutation -> simple_idct_mmx -> x)
+     * - (x -> reference dct -> reference idct -> x)
+     * - (x -> reference dct -> simple_mmx_perm = idct_permutation -> simple_idct_mmx -> x)
      * - (->decode coeffs -> zigzag reorder -> simple_mmx_perm -> dequant -> simple_idct_mmx ->...)
      */
     uint8_t idct_permutation[64];

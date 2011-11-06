@@ -46,6 +46,8 @@
 
 #define MAX_DELAYED_PIC_COUNT 16
 
+#define MAX_MBPAIR_SIZE (256*1024) // a tighter bound could be calculated if someone cares about a few bytes
+
 /* Compiling in interlaced support reduces the speed
  * of progressive decoding by about 2%. */
 #define ALLOW_INTERLACE
@@ -101,7 +103,7 @@
  */
 #define DELAYED_PIC_REF 4
 
-#define QP_MAX_NUM (51 + 2*6)           // The maximum supported qp
+#define QP_MAX_NUM (51 + 4*6)           // The maximum supported qp
 
 /* NAL unit types */
 enum {
@@ -227,7 +229,7 @@ typedef struct PPS{
     int transform_8x8_mode;     ///< transform_8x8_mode_flag
     uint8_t scaling_matrix4[6][16];
     uint8_t scaling_matrix8[6][64];
-    uint8_t chroma_qp_table[2][64];  ///< pre-scaled (with chroma_qp_index_offset) version of qp_table
+    uint8_t chroma_qp_table[2][QP_MAX_NUM+1];  ///< pre-scaled (with chroma_qp_index_offset) version of qp_table
     int chroma_qp_diff;
 }PPS;
 
@@ -569,6 +571,13 @@ typedef struct H264Context{
      * frames.
      */
     int sei_recovery_frame_cnt;
+    /**
+     * recovery_frame is the frame_num at which the next frame should
+     * be fully constructed.
+     *
+     * Set to -1 when not expecting a recovery point.
+     */
+    int recovery_frame;
 
     int luma_weight_flag[2];   ///< 7.4.3.2 luma_weight_lX_flag
     int chroma_weight_flag[2]; ///< 7.4.3.2 chroma_weight_lX_flag
@@ -578,10 +587,18 @@ typedef struct H264Context{
     int initial_cpb_removal_delay[32]; ///< Initial timestamps for CPBs
 
     int cur_chroma_format_idc;
+
+    int16_t slice_row[MAX_SLICES]; ///< to detect when MAX_SLICES is too low
+
+    int sync;                      ///< did we had a keyframe or recovery point
+
+    uint8_t parse_history[4];
+    int parse_history_count;
+    int parse_last_mb;
 }H264Context;
 
 
-extern const uint8_t ff_h264_chroma_qp[3][QP_MAX_NUM+1]; ///< One chroma qp table for each supported bit depth (8, 9, 10).
+extern const uint8_t ff_h264_chroma_qp[5][QP_MAX_NUM+1]; ///< One chroma qp table for each possible bit depth (8-12).
 
 /**
  * Decode SEI
@@ -655,11 +672,16 @@ int ff_h264_check_intra4x4_pred_mode(H264Context *h);
 /**
  * Check if the top & left blocks are available if needed & change the dc mode so it only uses the available blocks.
  */
-int ff_h264_check_intra_pred_mode(H264Context *h, int mode);
+int ff_h264_check_intra16x16_pred_mode(H264Context *h, int mode);
+
+/**
+ * Check if the top & left blocks are available if needed & change the dc mode so it only uses the available blocks.
+ */
+int ff_h264_check_intra_chroma_pred_mode(H264Context *h, int mode);
 
 void ff_h264_hl_decode_mb(H264Context *h);
 int ff_h264_frame_start(H264Context *h);
-int ff_h264_decode_extradata(H264Context *h);
+int ff_h264_decode_extradata(H264Context *h, const uint8_t *buf, int size);
 av_cold int ff_h264_decode_init(AVCodecContext *avctx);
 av_cold int ff_h264_decode_end(AVCodecContext *avctx);
 av_cold void ff_h264_decode_init_vlc(void);

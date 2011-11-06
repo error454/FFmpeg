@@ -16,7 +16,7 @@ cmp=${6:-diff}
 ref=${7:-"${base}/ref/fate/${test}"}
 fuzz=$8
 threads=${9:-1}
-thread_type=${10:-3}
+thread_type=${10:-frame+slice}
 tool=${11}
 
 outdir="tests/data/fate"
@@ -51,7 +51,7 @@ run(){
 }
 
 avconv(){
-    run $tool -v 0 -threads $threads -thread_type $thread_type "$@"
+    run $tool -nostats -threads $threads -thread_type $thread_type "$@"
 }
 
 framecrc(){
@@ -105,7 +105,7 @@ seektest(){
                  file=$(echo tests/data/$d/$file)
                  ;;
     esac
-    $target_exec $target_path/libavformat/seek-test $target_path/$file
+    run libavformat/seek-test $target_path/$file
 }
 
 mkdir -p "$outdir"

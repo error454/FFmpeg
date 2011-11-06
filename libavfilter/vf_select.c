@@ -28,10 +28,6 @@
 #include "avfilter.h"
 
 static const char *var_names[] = {
-    "E",                 ///< Euler number
-    "PHI",               ///< golden ratio
-    "PI",                ///< greek pi
-
     "TB",                ///< timebase
 
     "pts",               ///< original pts in the file of the frame
@@ -45,18 +41,18 @@ static const char *var_names[] = {
     "prev_selected_t",   ///< previously selected time
 
     "pict_type",         ///< the type of picture in the movie
-    "PICT_TYPE_I",
-    "PICT_TYPE_P",
-    "PICT_TYPE_B",
-    "PICT_TYPE_S",
-    "PICT_TYPE_SI",
-    "PICT_TYPE_SP",
-    "PICT_TYPE_BI",
+    "I",
+    "P",
+    "B",
+    "S",
+    "SI",
+    "SP",
+    "BI",
 
     "interlace_type",    ///< the frame interlace type
-    "INTERLACE_TYPE_P",
-    "INTERLACE_TYPE_T",
-    "INTERLACE_TYPE_B",
+    "PROGRESSIVE",
+    "TOPFIRST",
+    "BOTTOMFIRST",
 
     "n",                 ///< frame number (starting from zero)
     "selected_n",        ///< selected frame number (starting from zero)
@@ -69,10 +65,6 @@ static const char *var_names[] = {
 };
 
 enum var_name {
-    VAR_E,
-    VAR_PHI,
-    VAR_PI,
-
     VAR_TB,
 
     VAR_PTS,
@@ -145,10 +137,6 @@ static av_cold int init(AVFilterContext *ctx, const char *args, void *opaque)
 static int config_input(AVFilterLink *inlink)
 {
     SelectContext *select = inlink->dst->priv;
-
-    select->var_values[VAR_E]   = M_E;
-    select->var_values[VAR_PHI] = M_PHI;
-    select->var_values[VAR_PI]  = M_PI;
 
     select->var_values[VAR_N]          = 0.0;
     select->var_values[VAR_SELECTED_N] = 0.0;
@@ -317,19 +305,14 @@ static av_cold void uninit(AVFilterContext *ctx)
 {
     SelectContext *select = ctx->priv;
     AVFilterBufferRef *picref;
-    int i;
 
-    if (select->expr)
-        av_expr_free(select->expr);
+    av_expr_free(select->expr);
     select->expr = NULL;
 
-    if (select->pending_frames) {
-        for (i = 0; i < av_fifo_size(select->pending_frames)/sizeof(picref); i++) {
-            av_fifo_generic_read(select->pending_frames, &picref, sizeof(picref), NULL);
-            avfilter_unref_buffer(picref);
-        }
-        av_fifo_free(select->pending_frames);
-    }
+    while (select->pending_frames &&
+           av_fifo_generic_read(select->pending_frames, &picref, sizeof(picref), NULL) == sizeof(picref))
+        avfilter_unref_buffer(picref);
+    av_fifo_free(select->pending_frames);
     select->pending_frames = NULL;
 }
 

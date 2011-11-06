@@ -43,7 +43,35 @@ easier to use. The changes are:
       '-preset <presetname>'.
     * -intra option was removed, it's equivalent to -g 0.
 - XMV demuxer
-
+- LOAS demuxer
+- ashowinfo filter added
+- Windows Media Image decoder
+- amovie source added
+- LATM muxer/demuxer
+- Speex encoder via libspeex
+- JSON output in ffprobe
+- WTV muxer
+- Optional C++ Support (needed for libstagefright)
+- H.264 Decoding on Android via Stagefright
+- Prores decoder
+- BIN/XBIN/ADF/IDF text file decoder
+- aconvert audio filter added
+- audio support to lavfi input device added
+- libcdio-paranoia input device for audio CD grabbing
+- Apple ProRes decoder
+- CELT in Ogg demuxing
+- G.723.1 demuxer and decoder
+- libmodplug support (--enable-libmodplug)
+- VC-1 interlaced decoding
+- libutvideo wrapper (--enable-libutvideo)
+- aevalsrc audio source added
+- Ut Video decoder
+- Speex encoding via libspeex
+- 4:2:2 H.264 decoding support
+- Pulseaudio input device
+- Prores encoder
+- Video Decoder Acceleration (VDA) HWAccel module.
+- replacement Indeo 3 decoder
 
 version 0.8:
 
@@ -56,6 +84,7 @@ version 0.8:
 - Demuxer for On2's IVF format
 - Pictor/PC Paint decoder
 - HE-AAC v2 decoder
+- HE-AAC v2 encoding with libaacplus
 - libfaad2 wrapper removed
 - DTS-ES extension (XCh) decoding support
 - native VP8 decoder

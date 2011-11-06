@@ -1,0 +1,1 @@
+./configure --enable-gpl --enable-neon --extra-cflags=-march=armv7-a -mtune=cortex-a8 -mfpu=neon -ftree-vectorize -mfloat-abi=softfp -I/srv/preware/cross-compile/staging/armv7/usr/include/ -L/srv/preware/cross-compile/staging/armv7/usr/lib

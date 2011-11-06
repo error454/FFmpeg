@@ -91,6 +91,8 @@ av_cold int ff_h263_decode_init(AVCodecContext *avctx)
         break;
     case CODEC_ID_VC1:
     case CODEC_ID_WMV3:
+    case CODEC_ID_VC1IMAGE:
+    case CODEC_ID_WMV3IMAGE:
         s->h263_pred = 1;
         s->msmpeg4_version=6;
         avctx->chroma_sample_location = AVCHROMA_LOC_LEFT;
@@ -380,7 +382,7 @@ uint64_t time= rdtsc();
 
 
 retry:
-    if(s->divx_packed && s->xvid_build>=0 && s->bitstream_buffer_size){
+    if(s->divx_packed && s->bitstream_buffer_size){
         int i;
         for(i=0; i<buf_size-3; i++){
             if(buf[i]==0 && buf[i+1]==0 && buf[i+2]==1){
@@ -681,7 +683,7 @@ frame_end:
         int current_pos= s->gb.buffer == s->bitstream_buffer ? 0 : (get_bits_count(&s->gb)>>3);
         int startcode_found=0;
 
-        if(buf_size - current_pos > 5){
+        if(buf_size - current_pos > 7){
             int i;
             for(i=current_pos; i<buf_size-4; i++){
                 if(buf[i]==0 && buf[i+1]==0 && buf[i+2]==1 && buf[i+3]==0xB6){
@@ -730,7 +732,7 @@ intrax8_decoded:
 av_log(avctx, AV_LOG_DEBUG, "%"PRId64"\n", rdtsc()-time);
 #endif
 
-    return (ret && avctx->error_recognition >= FF_ER_EXPLODE)?ret:get_consumed_bytes(s, buf_size);
+    return (ret && (avctx->err_recognition & AV_EF_EXPLODE))?ret:get_consumed_bytes(s, buf_size);
 }
 
 AVCodec ff_h263_decoder = {

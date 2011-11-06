@@ -1287,6 +1287,8 @@ static const UID mxf_mpeg2_codec_uls[] = {
     { 0x06,0x0E,0x2B,0x34,0x04,0x01,0x01,0x03,0x04,0x01,0x02,0x02,0x01,0x03,0x03,0x00 }, // MP-HL Long GOP
     { 0x06,0x0E,0x2B,0x34,0x04,0x01,0x01,0x03,0x04,0x01,0x02,0x02,0x01,0x04,0x02,0x00 }, // 422P-HL I-Frame
     { 0x06,0x0E,0x2B,0x34,0x04,0x01,0x01,0x03,0x04,0x01,0x02,0x02,0x01,0x04,0x03,0x00 }, // 422P-HL Long GOP
+    { 0x06,0x0E,0x2B,0x34,0x04,0x01,0x01,0x03,0x04,0x01,0x02,0x02,0x01,0x05,0x02,0x00 }, // MP@H-14 I-Frame
+    { 0x06,0x0E,0x2B,0x34,0x04,0x01,0x01,0x03,0x04,0x01,0x02,0x02,0x01,0x05,0x03,0x00 }, // MP@H-14 Long GOP
 };
 
 static const UID *mxf_get_mpeg2_codec_ul(AVCodecContext *avctx)
@@ -1298,6 +1300,8 @@ static const UID *mxf_get_mpeg2_codec_ul(AVCodecContext *avctx)
             return &mxf_mpeg2_codec_uls[0+long_gop];
         else if (avctx->level == 4) // High
             return &mxf_mpeg2_codec_uls[4+long_gop];
+        else if (avctx->level == 6) // High 14
+            return &mxf_mpeg2_codec_uls[8+long_gop];
     } else if (avctx->profile == 0) { // 422
         if (avctx->level == 5) // Main
             return &mxf_mpeg2_codec_uls[2+long_gop];
@@ -1867,8 +1871,18 @@ static int mxf_interleave(AVFormatContext *s, AVPacket *out, AVPacket *pkt, int 
                                mxf_interleave_get_packet, mxf_compare_timestamps);
 }
 
-static const AVClass class = {
+static const AVClass mxf_class = {
     .class_name = "mxf",
+    .item_name  = av_default_item_name,
+    .version    = LIBAVUTIL_VERSION_INT,
+    .option     = (const AVOption[]){
+        {TIMECODE_OPT(MXFContext, AV_OPT_FLAG_ENCODING_PARAM)},
+        {NULL}
+    },
+};
+
+static const AVClass mxf_d10_class = {
+    .class_name = "mxf_d10",
     .item_name  = av_default_item_name,
     .version    = LIBAVUTIL_VERSION_INT,
     .option     = (const AVOption[]){
@@ -1890,7 +1904,7 @@ AVOutputFormat ff_mxf_muxer = {
     .write_trailer     = mxf_write_footer,
     .flags             = AVFMT_NOTIMESTAMPS,
     .interleave_packet = mxf_interleave,
-    .priv_class        = &class,
+    .priv_class        = &mxf_class,
 };
 
 AVOutputFormat ff_mxf_d10_muxer = {
@@ -1905,5 +1919,5 @@ AVOutputFormat ff_mxf_d10_muxer = {
     .write_trailer     = mxf_write_footer,
     .flags             = AVFMT_NOTIMESTAMPS,
     .interleave_packet = mxf_interleave,
-    .priv_class        = &class,
+    .priv_class        = &mxf_d10_class,
 };

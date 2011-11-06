@@ -321,6 +321,11 @@ static AVLFG random_state;
 static FILE *logfile = NULL;
 
 /* FIXME: make ffserver work with IPv6 */
+void exit_program(int ret)
+{
+    exit(ret);
+}
+
 /* resolve host with also IP address parsing */
 static int resolve_host(struct in_addr *sin_addr, const char *hostname)
 {
@@ -517,6 +522,7 @@ static int socket_open_listen(struct sockaddr_in *my_addr)
     tmp = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &tmp, sizeof(tmp));
 
+    my_addr->sin_family = AF_INET;
     if (bind (server_fd, (struct sockaddr *) my_addr, sizeof (*my_addr)) < 0) {
         char bindmsg[32];
         snprintf(bindmsg, sizeof(bindmsg), "bind(port %d)", ntohs(my_addr->sin_port));
@@ -2162,7 +2168,7 @@ static int open_input_stream(HTTPContext *c, const char *info)
     }
     s->flags |= AVFMT_FLAG_GENPTS;
     c->fmt_in = s;
-    if (strcmp(s->iformat->name, "ffm") && av_find_stream_info(c->fmt_in) < 0) {
+    if (strcmp(s->iformat->name, "ffm") && avformat_find_stream_info(c->fmt_in, NULL) < 0) {
         http_log("Could not find stream info '%s'\n", input_filename);
         av_close_input_file(s);
         return -1;
@@ -3163,8 +3169,8 @@ static void rtsp_cmd_setup(HTTPContext *c, const char *url,
 
     switch(rtp_c->rtp_protocol) {
     case RTSP_LOWER_TRANSPORT_UDP:
-        rtp_port = rtp_get_local_rtp_port(rtp_c->rtp_handles[stream_index]);
-        rtcp_port = rtp_get_local_rtcp_port(rtp_c->rtp_handles[stream_index]);
+        rtp_port = ff_rtp_get_local_rtp_port(rtp_c->rtp_handles[stream_index]);
+        rtcp_port = ff_rtp_get_local_rtcp_port(rtp_c->rtp_handles[stream_index]);
         avio_printf(c->pb, "Transport: RTP/AVP/UDP;unicast;"
                     "client_port=%d-%d;server_port=%d-%d",
                     th->client_port_min, th->client_port_max,
@@ -3621,7 +3627,7 @@ static void build_file_streams(void)
             } else {
                 /* find all the AVStreams inside and reference them in
                    'stream' */
-                if (av_find_stream_info(infile) < 0) {
+                if (avformat_find_stream_info(infile, NULL) < 0) {
                     http_log("Could not find codec parameters from '%s'\n",
                              stream->feed_filename);
                     av_close_input_file(infile);
@@ -3932,7 +3938,7 @@ static int ffserver_opt_default(const char *opt, const char *arg,
     int ret = 0;
     const AVOption *o = av_opt_find(avctx, opt, NULL, type, 0);
     if(o)
-        ret = av_set_string3(avctx, opt, arg, 1, NULL);
+        ret = av_opt_set(avctx, opt, arg, 0);
     return ret;
 }
 
@@ -4230,6 +4236,7 @@ static int parse_ffconfig(const char *filename)
                 stream->fmt = ffserver_guess_format(NULL, stream->filename, NULL);
                 avcodec_get_context_defaults2(&video_enc, AVMEDIA_TYPE_VIDEO);
                 avcodec_get_context_defaults2(&audio_enc, AVMEDIA_TYPE_AUDIO);
+
                 audio_id = CODEC_ID_NONE;
                 video_id = CODEC_ID_NONE;
                 if (stream->fmt) {
@@ -4664,6 +4671,7 @@ int main(int argc, char **argv)
 {
     struct sigaction sigact;
 
+    parse_loglevel(argc, argv, options);
     av_register_all();
 
     show_banner();
@@ -4672,7 +4680,7 @@ int main(int argc, char **argv)
     my_program_dir = getcwd(0, 0);
     ffserver_daemon = 1;
 
-    parse_options(argc, argv, options, NULL);
+    parse_options(NULL, argc, argv, options, NULL);
 
     unsetenv("http_proxy");             /* Kill the http_proxy */
 

@@ -199,8 +199,8 @@ typedef struct {
     /* packet filling */
     unsigned char multi_payloads_present;
     int packet_size_left;
-    int packet_timestamp_start;
-    int packet_timestamp_end;
+    int64_t packet_timestamp_start;
+    int64_t packet_timestamp_end;
     unsigned int packet_nb_payloads;
     uint8_t packet_buf[PACKET_SIZE];
     AVIOContext pb;
@@ -215,8 +215,8 @@ typedef struct {
 } ASFContext;
 
 static const AVCodecTag codec_asf_bmp_tags[] = {
-    { CODEC_ID_MPEG4, MKTAG('M', 'P', '4', 'S') },
     { CODEC_ID_MPEG4, MKTAG('M', '4', 'S', '2') },
+    { CODEC_ID_MPEG4, MKTAG('M', 'P', '4', 'S') },
     { CODEC_ID_MSMPEG4V3, MKTAG('M', 'P', '4', '3') },
     { CODEC_ID_NONE, 0 },
 };
@@ -434,10 +434,6 @@ static int asf_write_header1(AVFormatContext *s, int64_t file_size, int64_t data
         if (enc->codec_type == AVMEDIA_TYPE_AUDIO) {
             /* WAVEFORMATEX header */
             int wavsize = ff_put_wav_header(pb, enc);
-            if ((enc->codec_id != CODEC_ID_MP3) && (enc->codec_id != CODEC_ID_MP2) && (enc->codec_id != CODEC_ID_ADPCM_IMA_WAV) && (enc->extradata_size==0)) {
-                wavsize += 2;
-                avio_wl16(pb, 0);
-            }
 
             if (wavsize < 0)
                 return -1;
@@ -684,7 +680,7 @@ static void flush_packet(AVFormatContext *s)
 static void put_payload_header(
                                 AVFormatContext *s,
                                 ASFStream       *stream,
-                                int             presentation_time,
+                                int64_t         presentation_time,
                                 int             m_obj_size,
                                 int             m_obj_offset,
                                 int             payload_len,
@@ -711,7 +707,7 @@ static void put_payload_header(
     avio_w8(pb, ASF_PAYLOAD_REPLICATED_DATA_LENGTH);
 
     avio_wl32(pb, m_obj_size);       //Replicated Data - Media Object Size
-    avio_wl32(pb, presentation_time);//Replicated Data - Presentation Time
+    avio_wl32(pb, (uint32_t) presentation_time);//Replicated Data - Presentation Time
 
     if (asf->multi_payloads_present){
         avio_wl16(pb, payload_len);   //payload length
@@ -722,7 +718,7 @@ static void put_frame(
                     AVFormatContext *s,
                     ASFStream       *stream,
                     AVStream        *avst,
-                    int             timestamp,
+                    int64_t         timestamp,
                     const uint8_t   *buf,
                     int             m_obj_size,
                     int             flags
@@ -911,7 +907,7 @@ AVOutputFormat ff_asf_stream_muxer = {
 #if CONFIG_LIBMP3LAME
     .audio_codec    = CODEC_ID_MP3,
 #else
-    .audio_codec    = CODEC_ID_MP2,
+    .audio_codec    = CODEC_ID_WMAV2,
 #endif
     .video_codec    = CODEC_ID_MSMPEG4V3,
     .write_header   = asf_write_stream_header,

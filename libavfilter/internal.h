@@ -33,6 +33,14 @@ typedef struct AVFilterPool {
     int count;
 } AVFilterPool;
 
+typedef struct AVFilterCommand {
+    double time;                ///< time expressed in seconds
+    char *command;              ///< command
+    char *arg;                  ///< optional argument for the command
+    int flags;
+    struct AVFilterCommand *next;
+} AVFilterCommand;
+
 /**
  * Check for the validity of graph.
  *
@@ -64,6 +72,16 @@ int ff_fmt_is_in(int fmt, const int *fmts);
 /* Functions to parse audio format arguments */
 
 /**
+ * Parse a pixel format.
+ *
+ * @param ret pixel format pointer to where the value should be written
+ * @param arg string to parse
+ * @param log_ctx log context
+ * @return 0 in case of success, a negative AVERROR code on error
+ */
+int ff_parse_pixel_format(enum PixelFormat *ret, const char *arg, void *log_ctx);
+
+/**
  * Parse a sample rate.
  *
  * @param ret unsigned integer pointer to where the value should be written
@@ -71,7 +89,7 @@ int ff_fmt_is_in(int fmt, const int *fmts);
  * @param log_ctx log context
  * @return 0 in case of success, a negative AVERROR code on error
  */
-int ff_parse_sample_rate(unsigned *ret, const char *arg, void *log_ctx);
+int ff_parse_sample_rate(int *ret, const char *arg, void *log_ctx);
 
 /**
  * Parse a sample format name or a corresponding integer representation.

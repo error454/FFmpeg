@@ -83,6 +83,7 @@ static int config_output(AVFilterLink *outlink)
         aresample->out_rate = outlink->sample_rate;
     else
         outlink->sample_rate = aresample->out_rate;
+    outlink->time_base = (AVRational) {1, aresample->out_rate};
 
     //TODO: make the resampling parameters configurable
     aresample->resample = av_resample_init(aresample->out_rate, inlink->sample_rate,
@@ -104,12 +105,12 @@ static int query_formats(AVFilterContext *ctx)
         return AVERROR(ENOMEM);
     avfilter_set_common_sample_formats(ctx, formats);
 
-    formats = avfilter_all_channel_layouts();
+    formats = avfilter_make_all_channel_layouts();
     if (!formats)
         return AVERROR(ENOMEM);
     avfilter_set_common_channel_layouts(ctx, formats);
 
-    formats = avfilter_all_packing_formats();
+    formats = avfilter_make_all_packing_formats();
     if (!formats)
         return AVERROR(ENOMEM);
     avfilter_set_common_packing_formats(ctx, formats);
@@ -268,19 +269,15 @@ static void filter_samples(AVFilterLink *inlink, AVFilterBufferRef *insamplesref
         if (aresample->outsamplesref)
             avfilter_unref_buffer(aresample->outsamplesref);
 
-        aresample->outsamplesref = avfilter_get_audio_buffer(outlink,
-                                                            AV_PERM_WRITE | AV_PERM_REUSE2,
-                                                            inlink->format,
-                                                            requested_out_nb_samples,
-                                                            insamplesref->audio->channel_layout,
-                                                            insamplesref->audio->planar);
-
-        avfilter_copy_buffer_ref_props(aresample->outsamplesref, insamplesref);
-        aresample->outsamplesref->pts =
-            insamplesref->pts / inlink->sample_rate * outlink->sample_rate;
-        aresample->outsamplesref->audio->sample_rate = outlink->sample_rate;
+        aresample->outsamplesref =
+            avfilter_get_audio_buffer(outlink, AV_PERM_WRITE, requested_out_nb_samples);
         outlink->out_buf = aresample->outsamplesref;
     }
+
+    avfilter_copy_buffer_ref_props(aresample->outsamplesref, insamplesref);
+    aresample->outsamplesref->audio->sample_rate = outlink->sample_rate;
+    aresample->outsamplesref->pts =
+        av_rescale(outlink->sample_rate, insamplesref->pts, inlink->sample_rate);
 
     /* av_resample() works with planar audio buffers */
     if (!inlink->planar && nb_channels > 1) {

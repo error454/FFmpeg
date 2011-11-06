@@ -1,0 +1,2 @@
+C_INCLUDE_PATH=/srv/preware/cross-compile/staging/armv7/usr/include/
+LIBRARY_PATH=$LIBRARY_PATH:/srv/preware/cross-compile/staging/armv7/usr/lib

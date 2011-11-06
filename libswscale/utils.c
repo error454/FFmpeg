@@ -107,6 +107,8 @@ const static FormatEntry format_entries[PIX_FMT_NB] = {
     [PIX_FMT_YUVA420P]    = { 1 , 1 },
     [PIX_FMT_RGB48BE]     = { 1 , 1 },
     [PIX_FMT_RGB48LE]     = { 1 , 1 },
+    [PIX_FMT_RGBA64BE]    = { 0 , 0 },
+    [PIX_FMT_RGBA64LE]    = { 0 , 0 },
     [PIX_FMT_RGB565BE]    = { 1 , 1 },
     [PIX_FMT_RGB565LE]    = { 1 , 1 },
     [PIX_FMT_RGB555BE]    = { 1 , 1 },
@@ -128,16 +130,21 @@ const static FormatEntry format_entries[PIX_FMT_NB] = {
     [PIX_FMT_Y400A]       = { 1 , 0 },
     [PIX_FMT_BGR48BE]     = { 1 , 1 },
     [PIX_FMT_BGR48LE]     = { 1 , 1 },
+    [PIX_FMT_BGRA64BE]    = { 0 , 0 },
+    [PIX_FMT_BGRA64LE]    = { 0 , 0 },
     [PIX_FMT_YUV420P9BE]  = { 1 , 1 },
     [PIX_FMT_YUV420P9LE]  = { 1 , 1 },
     [PIX_FMT_YUV420P10BE] = { 1 , 1 },
     [PIX_FMT_YUV420P10LE] = { 1 , 1 },
+    [PIX_FMT_YUV422P9BE]  = { 1 , 1 },
+    [PIX_FMT_YUV422P9LE]  = { 1 , 1 },
     [PIX_FMT_YUV422P10BE] = { 1 , 1 },
     [PIX_FMT_YUV422P10LE] = { 1 , 1 },
-    [PIX_FMT_YUV444P9BE]  = { 1 , 0 },
-    [PIX_FMT_YUV444P9LE]  = { 1 , 0 },
-    [PIX_FMT_YUV444P10BE] = { 1 , 0 },
-    [PIX_FMT_YUV444P10LE] = { 1 , 0 },
+    [PIX_FMT_YUV444P9BE]  = { 1 , 1 },
+    [PIX_FMT_YUV444P9LE]  = { 1 , 1 },
+    [PIX_FMT_YUV444P10BE] = { 1 , 1 },
+    [PIX_FMT_YUV444P10LE] = { 1 , 1 },
+    [PIX_FMT_GBR24P]      = { 1 , 0 },
 };
 
 int sws_isSupportedInput(enum PixelFormat pix_fmt)
@@ -186,8 +193,8 @@ static int initFilter(int16_t **outFilter, int16_t **filterPos, int *outFilterSi
 
     emms_c(); //FIXME this should not be required but it IS (even for non-MMX versions)
 
-    // NOTE: the +1 is for the MMX scaler which reads over the end
-    FF_ALLOC_OR_GOTO(NULL, *filterPos, (dstW+1)*sizeof(int16_t), fail);
+    // NOTE: the +3 is for the MMX(+1)/SSE(+3) scaler which reads over the end
+    FF_ALLOC_OR_GOTO(NULL, *filterPos, (dstW+3)*sizeof(int16_t), fail);
 
     if (FFABS(xInc - 0x10000) <10) { // unscaled
         int i;
@@ -275,15 +282,18 @@ static int initFilter(int16_t **outFilter, int16_t **filterPos, int *outFilterSi
                 if (flags & SWS_BICUBIC) {
                     int64_t B= (param[0] != SWS_PARAM_DEFAULT ? param[0] :   0) * (1<<24);
                     int64_t C= (param[1] != SWS_PARAM_DEFAULT ? param[1] : 0.6) * (1<<24);
-                    int64_t dd = ( d*d)>>30;
-                    int64_t ddd= (dd*d)>>30;
 
-                    if      (d < 1LL<<30)
-                        coeff = (12*(1<<24)-9*B-6*C)*ddd + (-18*(1<<24)+12*B+6*C)*dd + (6*(1<<24)-2*B)*(1<<30);
-                    else if (d < 1LL<<31)
-                        coeff = (-B-6*C)*ddd + (6*B+30*C)*dd + (-12*B-48*C)*d + (8*B+24*C)*(1<<30);
-                    else
-                        coeff=0.0;
+                    if (d >= 1LL<<31) {
+                        coeff = 0.0;
+                    } else {
+                        int64_t dd  = (d  * d) >> 30;
+                        int64_t ddd = (dd * d) >> 30;
+
+                        if (d < 1LL<<30)
+                            coeff = (12*(1<<24)-9*B-6*C)*ddd + (-18*(1<<24)+12*B+6*C)*dd + (6*(1<<24)-2*B)*(1<<30);
+                        else
+                            coeff = (-B-6*C)*ddd + (6*B+30*C)*dd + (-12*B-48*C)*d + (8*B+24*C)*(1<<30);
+                    }
                     coeff *= fone>>(30+24);
                 }
 /*                else if (flags & SWS_X) {
@@ -473,7 +483,7 @@ static int initFilter(int16_t **outFilter, int16_t **filterPos, int *outFilterSi
 
     // Note the +1 is for the MMX scaler which reads over the end
     /* align at 16 for AltiVec (needed by hScale_altivec_real) */
-    FF_ALLOCZ_OR_GOTO(NULL, *outFilter, *outFilterSize*(dstW+1)*sizeof(int16_t), fail);
+    FF_ALLOCZ_OR_GOTO(NULL, *outFilter, *outFilterSize*(dstW+3)*sizeof(int16_t), fail);
 
     /* normalize & store in outFilter */
     for (i=0; i<dstW; i++) {
@@ -493,10 +503,14 @@ static int initFilter(int16_t **outFilter, int16_t **filterPos, int *outFilterSi
         }
     }
 
-    (*filterPos)[dstW]= (*filterPos)[dstW-1]; // the MMX scaler will read over the end
+    (*filterPos)[dstW+0] =
+    (*filterPos)[dstW+1] =
+    (*filterPos)[dstW+2] = (*filterPos)[dstW-1]; // the MMX/SSE scaler will read over the end
     for (i=0; i<*outFilterSize; i++) {
-        int j= dstW*(*outFilterSize);
-        (*outFilter)[j + i]= (*outFilter)[j + i - (*outFilterSize)];
+        int k= (dstW - 1) * (*outFilterSize) + i;
+        (*outFilter)[k + 1 * (*outFilterSize)] =
+        (*outFilter)[k + 2 * (*outFilterSize)] =
+        (*outFilter)[k + 3 * (*outFilterSize)] = (*outFilter)[k];
     }
 
     ret=0;

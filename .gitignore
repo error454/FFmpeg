@@ -7,7 +7,6 @@
 *-example
 *-test
 *_g
-config.*
 doc/*.1
 doc/*.html
 doc/*.pod
